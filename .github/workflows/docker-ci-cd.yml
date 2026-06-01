@@ -89,6 +89,6 @@ jobs:
             docker run -d \
               --name "$CONTAINER_NAME" \
               --restart always \
-              -p 9001:9001 \
+              -p 9002:9002 \
               -v "$LOG_DIR:$LOG_DIR" \
               "$IMAGE_PATH:latest"
