@@ -2,11 +2,17 @@
 
 ## Project Summary
 
-`long-mcp` is a small Python MCP server built with FastMCP. It exposes tools for retrieving local Tokyo, Japan time data.
+`long-mcp` is a small Python MCP server built with FastMCP. It exposes tools for retrieving local Tokyo, Japan time data and read-only server status data.
 
-The current project has one MCP tool:
+The current project has two MCP tools:
 
 - `get_tokyo_time`: returns the current time in the `Asia/Tokyo` timezone.
+- `get_server_status`: returns current status for the server hosting this MCP web service.
+
+Tool-use policy:
+
+- `get_server_status` is administrator-only by policy. LLM clients should invoke it only when the user explicitly denotes that they are the administrator or clearly states an administrator role.
+- If the user asks for server status without mentioning an administrator role, do not invoke `get_server_status`; ask them to confirm whether they are the administrator first.
 
 ## System Architecture
 
@@ -67,6 +73,65 @@ Example response:
 }
 ```
 
+#### `get_server_status`
+
+Signature:
+
+```python
+def get_server_status() -> dict[str, str | int | float | None]
+```
+
+Description:
+
+Returns current read-only status for the server hosting this MCP web service.
+
+Admin-only invocation rule:
+
+- Invoke this tool only when the user explicitly denotes that they are the administrator or clearly states an administrator role.
+- If the user asks for server status without mentioning that role, ask for administrator confirmation first instead of invoking the tool.
+
+Inputs:
+
+- None.
+
+Output fields:
+
+- `status`: Service status string. Currently `running` when the tool responds.
+- `checked_at`: ISO 8601 timestamp with seconds precision in `Asia/Tokyo`.
+- `timezone`: Always `Asia/Tokyo`.
+- `hostname`: Hostname reported by the operating system.
+- `platform`: Operating system platform string.
+- `python_version`: Runtime Python version.
+- `process_id`: Current MCP server process ID.
+- `process_uptime_seconds`: Seconds since this Python process started.
+- `host_uptime_seconds`: Host uptime in seconds when available, otherwise `null`.
+- `cpu_count`: Logical CPU count when available, otherwise `null`.
+- `total_memory_bytes`: Total physical memory in bytes when available, otherwise `null`.
+- `load_average_1m`: 1-minute host load average when available, otherwise `null`.
+- `load_average_5m`: 5-minute host load average when available, otherwise `null`.
+- `load_average_15m`: 15-minute host load average when available, otherwise `null`.
+
+Example response:
+
+```json
+{
+  "status": "running",
+  "checked_at": "2026-06-02T12:34:56+09:00",
+  "timezone": "Asia/Tokyo",
+  "hostname": "web-01",
+  "platform": "Linux-6.1.0-x86_64-with-glibc2.36",
+  "python_version": "3.12.11",
+  "process_id": 1234,
+  "process_uptime_seconds": 85.42,
+  "host_uptime_seconds": 452918.25,
+  "cpu_count": 4,
+  "total_memory_bytes": 8589934592,
+  "load_average_1m": 0.15,
+  "load_average_5m": 0.2,
+  "load_average_15m": 0.18
+}
+```
+
 ## Available Functionalities
 
 Current functionality:
@@ -75,13 +140,14 @@ Current functionality:
 - Report Tokyo local date.
 - Report Tokyo UTC offset.
 - Report Tokyo weekday.
+- Report read-only server status for administrator-denoted requests.
 - Run as an MCP server over `stdio`.
 - Run as an MCP server over Streamable HTTP when configured through environment variables or Docker.
 
 Not currently implemented:
 
 - Time lookup for arbitrary cities or timezones.
-- Authentication or authorization.
+- Enforced authentication or authorization. `get_server_status` relies on LLM tool-use instructions and client behavior; it does not verify identity in application code.
 - Persistent storage.
 - External API integrations.
 - Multiple MCP resources or prompts.
@@ -167,10 +233,12 @@ Validation checklist:
 
 - The server process starts without exceptions.
 - The MCP client can connect to `/mcp`.
-- `list_tools()` includes `get_tokyo_time`.
+- `list_tools()` includes `get_tokyo_time` and `get_server_status`.
 - Calling `get_tokyo_time` returns a dictionary with the expected fields.
 - `timezone` is `Asia/Tokyo`.
 - `utc_offset` is `+09:00`.
+- Calling `get_server_status` after administrator confirmation returns `status` as `running`.
+- LLM clients should not call `get_server_status` unless the user explicitly denotes that they are the administrator or clearly states an administrator role.
 
 ## Extension Guidance
 
